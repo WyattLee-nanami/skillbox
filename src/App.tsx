@@ -50,6 +50,10 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [present, setPresent] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Skill | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -129,6 +133,44 @@ export default function App() {
     navigator.clipboard.writeText(cmd);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
+  };
+
+  const askDelete = (s: Skill) => {
+    setConfirmDelete(s);
+    setConfirmText('');
+    setDeleteError(null);
+  };
+
+  const cancelDelete = () => {
+    setConfirmDelete(null);
+    setConfirmText('');
+    setDeleteError(null);
+    setDeleting(false);
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete || confirmText !== confirmDelete.name) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await invoke<void>('trash_skill', { dirName: confirmDelete.dir });
+      // optimistic update + refetch
+      const removedDir = confirmDelete.dir;
+      setData((prev) =>
+        prev ? { ...prev, skills: prev.skills.filter((sk) => sk.dir !== removedDir) } : prev,
+      );
+      setSelected((cur) =>
+        cur === confirmDelete.name
+          ? (data?.skills.find((s) => s.dir !== removedDir)?.name ?? null)
+          : cur,
+      );
+      cancelDelete();
+      // re-scan in background to keep usage counts fresh
+      invoke<ScanResult>('scan_skills').then(setData).catch(() => {});
+    } catch (e) {
+      setDeleteError(String(e));
+      setDeleting(false);
+    }
   };
 
   if (error) {
@@ -261,13 +303,22 @@ export default function App() {
           <>
             <div className="head">
               <h2>{current.name}</h2>
-              <button
-                className={`copy${copied ? ' copied' : ''}`}
-                onClick={() => copy(`/${current.name}`)}
-                title="复制 slash 命令"
-              >
-                {copied ? '✓ 已复制' : `/${current.name}`}
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className={`copy${copied ? ' copied' : ''}`}
+                  onClick={() => copy(`/${current.name}`)}
+                  title="复制 slash 命令"
+                >
+                  {copied ? '✓ 已复制' : `/${current.name}`}
+                </button>
+                <button
+                  className="copy danger"
+                  onClick={() => askDelete(current)}
+                  title="移到废纸篓"
+                >
+                  🗑 删除
+                </button>
+              </div>
             </div>
             <div className="meta">
               <span>📦 {(current.bytes / 1024).toFixed(1)} KB</span>
@@ -285,6 +336,49 @@ export default function App() {
           <div className="empty">选一个 skill</div>
         )}
       </section>
+
+      {confirmDelete && (
+        <div className="modal-backdrop" onClick={cancelDelete}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>移到废纸篓</h3>
+            <p>
+              即将把整个 skill 文件夹移到 macOS 废纸篓：
+            </p>
+            <pre className="modal-target">~/.claude/skills/{confirmDelete.dir}</pre>
+            <p style={{ color: 'var(--muted)', fontSize: 13 }}>
+              文件夹的全部内容（SKILL.md、references、scripts 等）都会一起进废纸篓。
+              删错了？去废纸篓拖回来即可。
+            </p>
+            <p style={{ marginTop: 14 }}>
+              输入 <code>{confirmDelete.name}</code> 确认：
+            </p>
+            <input
+              autoFocus
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={confirmDelete.name}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && confirmText === confirmDelete.name) doDelete();
+                if (e.key === 'Escape') cancelDelete();
+              }}
+              className="modal-input"
+            />
+            {deleteError && (
+              <div className="modal-error">删除失败：{deleteError}</div>
+            )}
+            <div className="modal-actions">
+              <button onClick={cancelDelete} disabled={deleting}>取消</button>
+              <button
+                className="danger"
+                disabled={confirmText !== confirmDelete.name || deleting}
+                onClick={doDelete}
+              >
+                {deleting ? '处理中…' : '移到废纸篓'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

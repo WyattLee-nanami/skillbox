@@ -216,6 +216,93 @@ mark {
   border-radius: 3px;
 }
 
+/* danger button */
+.copy.danger { color: #ff8a8a; }
+.copy.danger:hover { border-color: #ff8a8a; color: #ff5e5e; }
+
+/* modal */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px 26px;
+  max-width: 460px;
+  width: calc(100vw - 64px);
+  box-shadow: 0 24px 60px rgba(0,0,0,.5);
+}
+.modal h3 { margin: 0 0 12px; font-size: 17px; }
+.modal p { margin: 8px 0; }
+.modal code {
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 13px;
+  color: var(--accent2);
+}
+.modal-target {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 6px 0 8px;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.modal-input {
+  width: 100%;
+  margin-top: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text);
+  font-family: ui-monospace, 'SF Mono', monospace;
+  outline: none;
+}
+.modal-input:focus { border-color: var(--accent); }
+.modal-error {
+  margin-top: 10px;
+  color: #ff8a8a;
+  font-size: 13px;
+  background: rgba(255,138,138,.08);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.modal-actions button {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text);
+}
+.modal-actions button:hover:not(:disabled) { border-color: var(--accent); }
+.modal-actions button.danger {
+  background: #5a1f25;
+  border-color: #8a3540;
+  color: #ffd6d6;
+}
+.modal-actions button.danger:hover:not(:disabled) {
+  background: #7a2832;
+  border-color: #ff8a8a;
+}
+.modal-actions button:disabled { opacity: .4; cursor: not-allowed; }
+
 /* presentation mode */
 .app.present .sidebar,
 .app.present .list-pane { display: none; }

@@ -32,6 +32,32 @@ fn skills_dir() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".claude").join("skills"))
 }
 
+#[tauri::command]
+pub fn trash_skill(dir_name: String) -> Result<(), String> {
+    // Defense in depth — refuse paths that try to escape ~/.claude/skills/
+    if dir_name.is_empty()
+        || dir_name.contains('/')
+        || dir_name.contains('\\')
+        || dir_name.starts_with('.')
+        || dir_name.contains("..")
+    {
+        return Err(format!("invalid skill name: {}", dir_name));
+    }
+    let base = skills_dir().ok_or("HOME not set")?;
+    let target = base.join(&dir_name);
+    if !target.exists() {
+        return Err(format!("skill not found: {}", dir_name));
+    }
+    // Resolve and re-confirm parent is exactly ~/.claude/skills/
+    let canonical_target = target.canonicalize().map_err(|e| e.to_string())?;
+    let canonical_base = base.canonicalize().map_err(|e| e.to_string())?;
+    if canonical_target.parent() != Some(&canonical_base) {
+        return Err("path escape detected".to_string());
+    }
+    trash::delete(&canonical_target).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn projects_dir() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".claude").join("projects"))
 }
