@@ -1,10 +1,12 @@
 node_modules/
 dist/
 src/skills.json
+src/*.js
 src-tauri/target/
 src-tauri/Cargo.lock
 src-tauri/gen/
 .DS_Store
 *.log
 *.bak
+*.tsbuildinfo
 src-tauri/icons/icon.png.bak
