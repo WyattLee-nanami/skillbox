@@ -1,13 +1,13 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Skillbox",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "ai.skillbox.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "npm run scan && npm run dev",
-    "beforeBuildCommand": "npm run scan && npm run build"
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
   },
   "app": {
     "windows": [
@@ -31,7 +31,7 @@
     "targets": ["app", "dmg"],
     "category": "DeveloperTool",
     "shortDescription": "Find the right Claude skill in seconds",
-    "longDescription": "Typeless — a local browser for your Claude Code skill library. Search by name, description, or trigger. See usage stats. Copy slash commands. Built for the moment when you have 50 skills and can't remember which one to use.",
+    "longDescription": "Skillbox — a local browser for your Claude Code skill library. Scans your machine on launch, so you see your own skills. Search by name, description, or trigger. See usage stats. Copy slash commands.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

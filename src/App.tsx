@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Fuse from 'fuse.js';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import data from './skills.json';
+import { invoke } from '@tauri-apps/api/core';
 
 type Skill = {
   name: string;
@@ -14,17 +14,19 @@ type Skill = {
   bytes: number;
 };
 
-const skills: Skill[] = (data as any).skills;
-const generatedAt: string = (data as any).generatedAt;
+type ScanResult = {
+  generatedAt: string;
+  skillsDir: string;
+  skills: Skill[];
+};
 
 const GROUPS: { id: string; label: string; match: (s: Skill) => boolean }[] = [
-  { id: 'all', label: '全部', match: () => true },
-  { id: 'hot', label: '常用 (近期)', match: (s) => s.usageCount >= 3 },
+  { id: 'all', label: '全部 / All', match: () => true },
+  { id: 'hot', label: '常用', match: (s) => s.usageCount >= 3 },
   { id: 'unused', label: '从未使用', match: (s) => s.usageCount === 0 },
   { id: 'meta', label: '元 / 工具类', match: (s) => /skill|create|forge|update|init|nuwa/i.test(s.name) },
-  { id: 'meituan', label: '美团内部', match: (s) => /(meituan|dx|km|citadel|mrn|bi-|pde|aihot|decision|webauto|ldh|daxiang)/i.test(s.name) },
   { id: 'design', label: '设计 / UI', match: (s) => /(design|ui|banner|brand|slides|architecture|icon)/i.test(s.name) },
-  { id: 'life', label: '生活场景', match: (s) => /(团建|聚餐|外卖|搬家|购物|旅游|周边|健身|预约|City|手艺|找优惠|taobao)/i.test(s.name) },
+  { id: 'life', label: '生活场景', match: (s) => /(团建|聚餐|外卖|搬家|购物|旅游|周边|健身|预约|City|手艺|找优惠|taobao|waimai|shopping)/i.test(s.name) },
 ];
 
 function highlight(text: string, query: string): React.ReactNode {
@@ -41,12 +43,35 @@ function highlight(text: string, query: string): React.ReactNode {
 }
 
 export default function App() {
+  const [data, setData] = useState<ScanResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [group, setGroup] = useState('all');
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<string | null>(skills[0]?.name ?? null);
+  const [selected, setSelected] = useState<string | null>(null);
   const [present, setPresent] = useState(false);
   const [copied, setCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    invoke<ScanResult>('scan_skills')
+      .then((r) => {
+        setData(r);
+        setSelected(r.skills[0]?.name ?? null);
+      })
+      .catch((e) => setError(String(e)));
+  }, []);
+
+  const refresh = () => {
+    setError(null);
+    invoke<ScanResult>('scan_skills')
+      .then((r) => {
+        setData(r);
+        setSelected((cur) => cur ?? r.skills[0]?.name ?? null);
+      })
+      .catch((e) => setError(String(e)));
+  };
+
+  const skills = data?.skills ?? [];
 
   const fuse = useMemo(
     () =>
@@ -59,7 +84,7 @@ export default function App() {
         threshold: 0.4,
         ignoreLocation: true,
       }),
-    [],
+    [skills],
   );
 
   const filtered = useMemo(() => {
@@ -69,7 +94,7 @@ export default function App() {
       list = list.filter((s) => found.has(s.name));
     }
     return list;
-  }, [group, query, fuse]);
+  }, [skills, group, query, fuse]);
 
   const current = skills.find((s) => s.name === selected) ?? filtered[0];
 
@@ -83,6 +108,10 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
         e.preventDefault();
         setPresent((p) => !p);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+        e.preventDefault();
+        refresh();
       }
       if (e.key === 'Escape') {
         setPresent(false);
@@ -101,6 +130,65 @@ export default function App() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
+
+  if (error) {
+    return (
+      <div className="empty" style={{ flexDirection: 'column', padding: 40, textAlign: 'center' }}>
+        <div style={{ fontSize: 18, marginBottom: 12 }}>扫描失败 / Scan failed</div>
+        <div style={{ fontSize: 13, fontFamily: 'monospace', color: '#ff8a8a' }}>{error}</div>
+        <button
+          onClick={refresh}
+          style={{
+            marginTop: 18,
+            background: 'var(--panel)',
+            border: '1px solid var(--line)',
+            borderRadius: 8,
+            padding: '8px 16px',
+            cursor: 'pointer',
+            color: 'var(--text)',
+          }}
+        >
+          重试
+        </button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="empty" style={{ flexDirection: 'column' }}>
+        <div>扫描你的 skill 库… / Scanning…</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>~/.claude/skills/</div>
+      </div>
+    );
+  }
+
+  if (skills.length === 0) {
+    return (
+      <div className="empty" style={{ flexDirection: 'column', textAlign: 'center', padding: 40 }}>
+        <div style={{ fontSize: 18, marginBottom: 8 }}>没有找到 skill</div>
+        <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+          目录：{data.skillsDir}
+          <br />
+          请确认 ~/.claude/skills/ 下至少有一个含 SKILL.md 的子目录
+        </div>
+        <button
+          onClick={refresh}
+          style={{
+            marginTop: 18,
+            background: 'var(--panel)',
+            border: '1px solid var(--line)',
+            borderRadius: 8,
+            padding: '8px 16px',
+            cursor: 'pointer',
+            color: 'var(--text)',
+          }}
+        >
+          重新扫描
+        </button>
+      </div>
+    );
+  }
 
   const groupCounts = GROUPS.map((g) => ({ ...g, count: skills.filter(g.match).length }));
 
@@ -121,13 +209,14 @@ export default function App() {
         <div className="group" style={{ marginTop: 24 }}>快捷键</div>
         <div style={{ padding: '4px 10px', color: 'var(--muted)', fontSize: 12 }}>
           ⌘K 搜索<br />
+          ⌘R 重新扫描<br />
           ⌘D 演示模式<br />
           Esc 退出
         </div>
         <div className="group" style={{ marginTop: 24 }}>数据</div>
         <div style={{ padding: '4px 10px', color: 'var(--muted)', fontSize: 11 }}>
           {skills.length} 个 skill<br />
-          {new Date(generatedAt).toLocaleString('zh-CN')}
+          <span style={{ wordBreak: 'break-all' }}>{data.skillsDir}</span>
         </div>
       </aside>
 
