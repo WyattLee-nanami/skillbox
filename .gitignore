@@ -1,0 +1,10 @@
+node_modules/
+dist/
+src/skills.json
+src-tauri/target/
+src-tauri/Cargo.lock
+src-tauri/gen/
+.DS_Store
+*.log
+*.bak
+src-tauri/icons/icon.png.bak
