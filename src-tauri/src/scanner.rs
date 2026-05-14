@@ -34,27 +34,39 @@ fn skills_dir() -> Option<PathBuf> {
 
 #[tauri::command]
 pub fn trash_skill(dir_name: String) -> Result<(), String> {
-    // Defense in depth — refuse paths that try to escape ~/.claude/skills/
+    // Reject anything containing path separators or relative refs.
+    // We only accept a single directory name component.
     if dir_name.is_empty()
         || dir_name.contains('/')
         || dir_name.contains('\\')
-        || dir_name.starts_with('.')
-        || dir_name.contains("..")
+        || dir_name == "."
+        || dir_name == ".."
+        || dir_name.contains('\0')
     {
         return Err(format!("invalid skill name: {}", dir_name));
     }
     let base = skills_dir().ok_or("HOME not set")?;
     let target = base.join(&dir_name);
-    if !target.exists() {
+    if !target.exists() && !target.is_symlink() {
         return Err(format!("skill not found: {}", dir_name));
     }
-    // Resolve and re-confirm parent is exactly ~/.claude/skills/
-    let canonical_target = target.canonicalize().map_err(|e| e.to_string())?;
+    // Resolve only the BASE (not target) so symlinked skill folders are allowed.
+    // Then verify target's parent (without following its own symlink) lives
+    // under the canonical base. Since we built `target = base.join(name)`,
+    // and `name` has no separators, this can only fail if base itself is
+    // somehow not what we expect.
     let canonical_base = base.canonicalize().map_err(|e| e.to_string())?;
-    if canonical_target.parent() != Some(&canonical_base) {
+    let canonical_parent = target
+        .parent()
+        .ok_or("missing parent")?
+        .canonicalize()
+        .map_err(|e| e.to_string())?;
+    if canonical_parent != canonical_base {
         return Err("path escape detected".to_string());
     }
-    trash::delete(&canonical_target).map_err(|e| e.to_string())?;
+    // Pass the un-canonicalized path so the trash crate moves the symlink
+    // itself (or the real folder if it's a real folder), not the symlink target.
+    trash::delete(&target).map_err(|e| e.to_string())?;
     Ok(())
 }
 
