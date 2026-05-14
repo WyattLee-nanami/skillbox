@@ -64,9 +64,21 @@ pub fn trash_skill(dir_name: String) -> Result<(), String> {
     if canonical_parent != canonical_base {
         return Err("path escape detected".to_string());
     }
-    // Pass the un-canonicalized path so the trash crate moves the symlink
-    // itself (or the real folder if it's a real folder), not the symlink target.
-    trash::delete(&target).map_err(|e| e.to_string())?;
+    // Move the entry into ~/.Trash/ ourselves. Avoids the trash crate's
+    // AppleScript path which stalls on large folders (Finder AppleEvent
+    // -1712). On collision, append a timestamp.
+    let trash_dir = home_dir().ok_or("HOME not set")?.join(".Trash");
+    fs::create_dir_all(&trash_dir).map_err(|e| e.to_string())?;
+    let mut dest = trash_dir.join(&dir_name);
+    if dest.exists() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        dest = trash_dir.join(format!("{} {}", dir_name, stamp));
+    }
+    fs::rename(&target, &dest).map_err(|e| e.to_string())?;
     Ok(())
 }
 
