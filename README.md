@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Skillbox — Skill Management for macOS" />
+  <img src="assets/banner.png" alt="Weft — Skill Management for macOS" />
 </p>
 
-<h1 align="center">Skillbox</h1>
+<h1 align="center">Weft</h1>
 
 <p align="center">
   <b>Find the right Claude skill in seconds — without scrolling.</b><br/>
@@ -23,7 +23,7 @@
 
 When your `~/.claude/skills/` folder grows past 30 entries, you stop remembering which skill does what. The Claude Code skill list becomes a wall of names that all look vaguely useful.
 
-Skillbox reads your local skill files and turns them into a searchable, browsable library — so you can find the one you need without scrolling through 50+ items every time.
+Weft reads your local skill files and turns them into a searchable, browsable library — so you can find the one you need without scrolling through 50+ items every time.
 
 ## Features
 
@@ -41,11 +41,11 @@ Skillbox reads your local skill files and turns them into a searchable, browsabl
 Requires **Node 18+**, **Rust stable**, and **Xcode command-line tools**.
 
 ```bash
-git clone https://github.com/WyattLee-nanami/skillbox
-cd skillbox
+git clone https://github.com/WyattLee-nanami/weft
+cd weft
 npm install
 npm run tauri build
-open src-tauri/target/release/bundle/macos/Skillbox.app
+open src-tauri/target/release/bundle/macos/Weft.app
 ```
 
 ### Option B — download a release
@@ -62,7 +62,7 @@ First launch: macOS will block an unsigned app. Go to **System Settings → Priv
 ~/.claude/projects/**/*.jsonl      ──┘                                                 │
    (usage counting)                                                                Tauri shell
                                                                                        │
-                                                                                  Skillbox.app
+                                                                                  Weft.app
 ```
 
 The scanner runs at build time, parsing each `SKILL.md` frontmatter (name, description, triggers) and counting how often each skill name appears in your local Claude Code session history.

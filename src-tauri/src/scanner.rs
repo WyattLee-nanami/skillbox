@@ -392,7 +392,7 @@ pub fn backup_config() -> Result<BackupResult, String> {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let archive = docs.join(format!("Skillbox-backup-{}.tar.gz", stamp));
+    let archive = docs.join(format!("Weft-backup-{}.tar.gz", stamp));
 
     let mut items = Vec::new();
     let mut tar_args: Vec<String> = vec![

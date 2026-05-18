@@ -313,7 +313,7 @@ export default function App() {
   return (
     <div className={`app${present ? ' present' : ''}`}>
       <aside className="sidebar">
-        <h1>Skillbox</h1>
+        <h1>Weft</h1>
         {groupCounts.map((g) => (
           <button
             key={g.id}

@@ -1,8 +1,8 @@
 {
-  "name": "skillbox",
+  "name": "weft",
   "private": true,
   "version": "0.1.0",
-  "description": "Skillbox — find the right Claude skill in seconds, without scrolling.",
+  "description": "Weft — find the right Claude skill in seconds, without scrolling.",
   "type": "module",
   "scripts": {
     "scan": "node scripts/scan-skills.mjs",

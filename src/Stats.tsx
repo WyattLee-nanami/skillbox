@@ -69,13 +69,13 @@ export default function Stats() {
       </div>
 
       <div className="kpi-row">
-        <div className="kpi-card">
-          <div className="kpi-label">总 TOKEN</div>
+        <div className="kpi-card k1">
+          <div className="kpi-label"><span className="kpi-icon">🔥</span>总 TOKEN</div>
           <div className="kpi-value">{fmtNum(data.total_tokens)}</div>
           <div className="kpi-sub">{data.session_count} 个会话</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-label">消息数</div>
+        <div className="kpi-card k2">
+          <div className="kpi-label"><span className="kpi-icon">💬</span>消息数</div>
           <div className="kpi-value">{data.total_messages}</div>
           <div className="kpi-sub">AI 回复</div>
         </div>

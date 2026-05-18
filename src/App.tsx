@@ -12,7 +12,7 @@ export default function App() {
     <div className="app-shell">
       <nav className="topbar">
         <div className="topbar-brand">
-          <span className="brand-dot" /> Skillbox
+          <span className="brand-dot" /> Weft
         </div>
         <div className="topbar-tabs">
           <button className={tab === 'skills' ? 'active' : ''} onClick={() => setTab('skills')}>
