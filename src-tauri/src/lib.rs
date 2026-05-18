@@ -1,4 +1,6 @@
+mod history;
 mod scanner;
+mod usage;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,7 +21,12 @@ pub fn run() {
       scanner::disable_skill,
       scanner::enable_skill,
       scanner::backup_config,
-      scanner::restore_config
+      scanner::restore_config,
+      usage::scan_usage,
+      history::list_projects,
+      history::list_sessions,
+      history::read_session,
+      history::search_history
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
