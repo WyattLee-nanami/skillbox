@@ -216,6 +216,71 @@ mark {
   border-radius: 3px;
 }
 
+/* batch bar */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.batch-bar button {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.batch-bar button:hover { border-color: var(--accent); }
+.batch-bar button.btn-primary {
+  background: var(--accent);
+  color: #0f1117;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.batch-bar button.btn-primary:disabled {
+  background: var(--panel2);
+  color: var(--muted);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+/* generic btn */
+.btn {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+/* card disabled state */
+.card.disabled { opacity: 0.55; }
+.card.disabled h3 { text-decoration: line-through; text-decoration-color: var(--muted); }
+.badge.muted { background: var(--panel2); color: var(--muted); }
+
+/* toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  max-width: 80vw;
+  z-index: 999;
+  word-break: break-all;
+}
+
 /* danger button */
 .copy.danger { color: #ff8a8a; }
 .copy.danger:hover { border-color: #ff8a8a; color: #ff5e5e; }

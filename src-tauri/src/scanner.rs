@@ -13,6 +13,7 @@ pub struct Skill {
     #[serde(rename = "usageCount")]
     pub usage_count: u64,
     pub bytes: u64,
+    pub disabled: bool,
 }
 
 #[derive(Serialize)]
@@ -30,6 +31,65 @@ fn home_dir() -> Option<PathBuf> {
 
 fn skills_dir() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".claude").join("skills"))
+}
+
+fn disabled_dir() -> Option<PathBuf> {
+    home_dir().map(|h| h.join(".claude").join("skills.disabled"))
+}
+
+fn validate_name(name: &str) -> Result<(), String> {
+    if name.is_empty()
+        || name.contains('/')
+        || name.contains('\\')
+        || name == "."
+        || name == ".."
+        || name.contains('\0')
+    {
+        return Err(format!("invalid skill name: {}", name));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn disable_skill(dir_name: String) -> Result<(), String> {
+    validate_name(&dir_name)?;
+    let src = skills_dir().ok_or("HOME not set")?.join(&dir_name);
+    if !src.exists() && !src.is_symlink() {
+        return Err(format!("skill not found: {}", dir_name));
+    }
+    let disabled = disabled_dir().ok_or("HOME not set")?;
+    fs::create_dir_all(&disabled).map_err(|e| e.to_string())?;
+    let mut dst = disabled.join(&dir_name);
+    if dst.exists() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        dst = disabled.join(format!("{} {}", dir_name, stamp));
+    }
+    fs::rename(&src, &dst).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn enable_skill(dir_name: String) -> Result<(), String> {
+    validate_name(&dir_name)?;
+    let src = disabled_dir().ok_or("HOME not set")?.join(&dir_name);
+    if !src.exists() && !src.is_symlink() {
+        return Err(format!("disabled skill not found: {}", dir_name));
+    }
+    let active = skills_dir().ok_or("HOME not set")?;
+    fs::create_dir_all(&active).map_err(|e| e.to_string())?;
+    let dst = active.join(&dir_name);
+    if dst.exists() || dst.is_symlink() {
+        return Err(format!(
+            "an active skill named '{}' already exists; rename or remove it first",
+            dir_name
+        ));
+    }
+    fs::rename(&src, &dst).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -204,67 +264,210 @@ fn count_usage(skill_dirs: &[String]) -> HashMap<String, u64> {
     counts
 }
 
-#[tauri::command]
-pub fn scan_skills() -> Result<ScanResult, String> {
-    let dir = skills_dir().ok_or("HOME env not set")?;
-    if !dir.exists() {
-        return Ok(ScanResult {
-            generated_at: chrono_now(),
-            skills_dir: dir.display().to_string(),
-            skills: vec![],
-        });
-    }
-
-    let mut dir_names: Vec<String> = Vec::new();
-    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        if entry.path().is_dir() {
-            if let Some(n) = entry.file_name().to_str() {
-                dir_names.push(n.to_string());
+fn list_dirs(parent: &Path) -> Vec<String> {
+    let mut names = Vec::new();
+    if let Ok(entries) = fs::read_dir(parent) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                if let Some(n) = entry.file_name().to_str() {
+                    names.push(n.to_string());
+                }
             }
         }
     }
+    names
+}
 
-    let usage = count_usage(&dir_names);
+fn build_skill(parent: &Path, dir_name: &str, usage: u64, disabled: bool) -> Option<Skill> {
+    let skill_md = parent.join(dir_name).join("SKILL.md");
+    if !skill_md.exists() {
+        return None;
+    }
+    let text = fs::read_to_string(&skill_md).ok()?;
+    let (meta, body) = parse_frontmatter(&text);
+    let name = meta.get("name").cloned().unwrap_or_else(|| dir_name.to_string());
+    let description = meta
+        .get("description")
+        .map(|s| s.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default();
+    let triggers = extract_triggers(&description);
+    Some(Skill {
+        name,
+        dir: dir_name.to_string(),
+        description,
+        triggers,
+        body,
+        usage_count: usage,
+        bytes: text.len() as u64,
+        disabled,
+    })
+}
+
+#[tauri::command]
+pub fn scan_skills() -> Result<ScanResult, String> {
+    let active_dir = skills_dir().ok_or("HOME env not set")?;
+    let dis_dir = disabled_dir().ok_or("HOME env not set")?;
+
+    let active_names = list_dirs(&active_dir);
+    let disabled_names = list_dirs(&dis_dir);
+
+    // Count usage for both active + disabled (so disabling doesn't lose stats).
+    let mut all_names: Vec<String> = active_names.iter().chain(disabled_names.iter()).cloned().collect();
+    all_names.sort();
+    all_names.dedup();
+    let usage = count_usage(&all_names);
 
     let mut skills: Vec<Skill> = Vec::new();
-    for d in &dir_names {
-        let skill_md = dir.join(d).join("SKILL.md");
-        if !skill_md.exists() {
-            continue;
+    for d in &active_names {
+        if let Some(s) = build_skill(&active_dir, d, usage.get(d).copied().unwrap_or(0), false) {
+            skills.push(s);
         }
-        let text = match fs::read_to_string(&skill_md) {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-        let (meta, body) = parse_frontmatter(&text);
-        let name = meta.get("name").cloned().unwrap_or_else(|| d.clone());
-        let description = meta
-            .get("description")
-            .map(|s| s.split_whitespace().collect::<Vec<_>>().join(" "))
-            .unwrap_or_default();
-        let triggers = extract_triggers(&description);
-        skills.push(Skill {
-            name,
-            dir: d.clone(),
-            description,
-            triggers,
-            body,
-            usage_count: usage.get(d).copied().unwrap_or(0),
-            bytes: text.len() as u64,
-        });
+    }
+    for d in &disabled_names {
+        if let Some(s) = build_skill(&dis_dir, d, usage.get(d).copied().unwrap_or(0), true) {
+            skills.push(s);
+        }
     }
 
     skills.sort_by(|a, b| {
-        b.usage_count
-            .cmp(&a.usage_count)
+        a.disabled
+            .cmp(&b.disabled) // active first
+            .then_with(|| b.usage_count.cmp(&a.usage_count))
             .then_with(|| a.name.cmp(&b.name))
     });
 
     Ok(ScanResult {
         generated_at: chrono_now(),
-        skills_dir: dir.display().to_string(),
+        skills_dir: active_dir.display().to_string(),
         skills,
+    })
+}
+
+// ---------- backup / restore ----------
+
+#[derive(Serialize)]
+pub struct BackupResult {
+    pub path: String,
+    pub bytes: u64,
+    pub items: Vec<String>,
+}
+
+const BACKUP_ITEMS: &[&str] = &[
+    "skills",
+    "skills.disabled",
+    "commands",
+    "settings.json",
+    "settings.local.json",
+    "CLAUDE.md",
+];
+
+fn run_tar(args: &[&str]) -> Result<(), String> {
+    use std::process::Command;
+    let out = Command::new("tar")
+        .args(args)
+        .output()
+        .map_err(|e| format!("tar spawn failed: {}", e))?;
+    if !out.status.success() {
+        return Err(format!(
+            "tar exited {}: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr)
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn backup_config() -> Result<BackupResult, String> {
+    let home = home_dir().ok_or("HOME not set")?;
+    let claude = home.join(".claude");
+    if !claude.exists() {
+        return Err("~/.claude not found".to_string());
+    }
+    let docs = home.join("Documents");
+    fs::create_dir_all(&docs).map_err(|e| e.to_string())?;
+
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let archive = docs.join(format!("Skillbox-backup-{}.tar.gz", stamp));
+
+    let mut items = Vec::new();
+    let mut tar_args: Vec<String> = vec![
+        "czf".to_string(),
+        archive.to_string_lossy().to_string(),
+        "-C".to_string(),
+        claude.to_string_lossy().to_string(),
+    ];
+    for item in BACKUP_ITEMS {
+        if claude.join(item).exists() {
+            tar_args.push(item.to_string());
+            items.push(item.to_string());
+        }
+    }
+    if items.is_empty() {
+        return Err("nothing to back up".to_string());
+    }
+    run_tar(&tar_args.iter().map(|s| s.as_str()).collect::<Vec<_>>())?;
+    let meta = fs::metadata(&archive).map_err(|e| e.to_string())?;
+    Ok(BackupResult {
+        path: archive.to_string_lossy().to_string(),
+        bytes: meta.len(),
+        items,
+    })
+}
+
+#[derive(Serialize)]
+pub struct RestoreResult {
+    pub restored: Vec<String>,
+    pub conflicts_renamed: Vec<String>,
+}
+
+#[tauri::command]
+pub fn restore_config(archive_path: String) -> Result<RestoreResult, String> {
+    let archive = PathBuf::from(&archive_path);
+    if !archive.exists() {
+        return Err(format!("archive not found: {}", archive_path));
+    }
+    let home = home_dir().ok_or("HOME not set")?;
+    let claude = home.join(".claude");
+    fs::create_dir_all(&claude).map_err(|e| e.to_string())?;
+
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let mut conflicts_renamed = Vec::new();
+    for item in BACKUP_ITEMS {
+        let cur = claude.join(item);
+        if cur.exists() {
+            let backup_name = format!("{}.before-restore.{}", item, stamp);
+            let backup_path = claude.join(&backup_name);
+            fs::rename(&cur, &backup_path).map_err(|e| e.to_string())?;
+            conflicts_renamed.push(backup_name);
+        }
+    }
+
+    run_tar(&[
+        "xzf",
+        archive.to_string_lossy().as_ref(),
+        "-C",
+        claude.to_string_lossy().as_ref(),
+    ])?;
+
+    let mut restored = Vec::new();
+    for item in BACKUP_ITEMS {
+        if claude.join(item).exists() {
+            restored.push(item.to_string());
+        }
+    }
+    Ok(RestoreResult {
+        restored,
+        conflicts_renamed,
     })
 }
 

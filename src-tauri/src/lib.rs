@@ -13,7 +13,14 @@ pub fn run() {
       }
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![scanner::scan_skills, scanner::trash_skill])
+    .invoke_handler(tauri::generate_handler![
+      scanner::scan_skills,
+      scanner::trash_skill,
+      scanner::disable_skill,
+      scanner::enable_skill,
+      scanner::backup_config,
+      scanner::restore_config
+    ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
